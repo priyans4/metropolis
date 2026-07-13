@@ -1,0 +1,105 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile with preferences",
+      "type": "object",
+      "properties": {
+        "fullName": { "type": "string", "maxLength": 100 },
+        "email": { "type": "string", "maxLength": 100 },
+        "phone": { "type": "string", "maxLength": 30 },
+        "memberSince": { "type": "string", "maxLength": 50 },
+        "memberId": { "type": "string", "maxLength": 50 },
+        "preferences": {
+          "type": "object",
+          "properties": {
+            "roomTemperature": { "type": "number" },
+            "pillowType": { "type": "string", "enum": ["Goose Down", "Memory Foam", "Hypoallergenic", "Lavender Infused"] },
+            "roomLocation": { "type": "string", "enum": ["High Floor", "Near Elevator", "Quiet Courtyard", "No Preference"] }
+          }
+        }
+      },
+      "required": ["fullName", "email", "phone"]
+    },
+    "Booking": {
+      "title": "Booking",
+      "description": "Hotel suite reservation",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "suiteId": { "type": "string", "maxLength": 128 },
+        "suiteName": { "type": "string", "maxLength": 100 },
+        "suiteImage": { "type": "string", "maxLength": 500 },
+        "checkIn": { "type": "string", "maxLength": 20 },
+        "checkOut": { "type": "string", "maxLength": 20 },
+        "guests": { "type": "integer" },
+        "guestName": { "type": "string", "maxLength": 100 },
+        "guestEmail": { "type": "string", "maxLength": 100 },
+        "guestPhone": { "type": "string", "maxLength": 30 },
+        "totalPrice": { "type": "number" },
+        "nights": { "type": "integer" },
+        "status": { "type": "string", "enum": ["active", "cancelled"] },
+        "bookingDate": { "type": "string", "maxLength": 50 },
+        "specialRequests": { "type": "string", "maxLength": 1000 }
+      },
+      "required": ["id", "userId", "suiteId", "suiteName", "checkIn", "checkOut", "guests", "guestName", "guestEmail", "guestPhone", "totalPrice", "nights", "status", "bookingDate"]
+    },
+    "Review": {
+      "title": "Review",
+      "description": "Guest suite review",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "suiteId": { "type": "string", "maxLength": 128 },
+        "userName": { "type": "string", "maxLength": 100 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "rating": { "type": "number" },
+        "date": { "type": "string", "maxLength": 50 },
+        "comment": { "type": "string", "maxLength": 2000 },
+        "title": { "type": "string", "maxLength": 200 }
+      },
+      "required": ["id", "suiteId", "userName", "userId", "rating", "date", "comment"]
+    },
+    "Suite": {
+      "title": "Suite",
+      "description": "Hotel suite catalog item",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 100 },
+        "description": { "type": "string", "maxLength": 500 },
+        "longDescription": { "type": "string", "maxLength": 2000 },
+        "type": { "type": "string", "enum": ["standard", "deluxe", "executive", "penthouse"] },
+        "pricePerNight": { "type": "number" },
+        "rating": { "type": "number" },
+        "reviewCount": { "type": "number" },
+        "images": { "type": "array" },
+        "beds": { "type": "string", "maxLength": 50 },
+        "guests": { "type": "integer" },
+        "size": { "type": "number" },
+        "amenities": { "type": "array" },
+        "featured": { "type": "boolean" }
+      },
+      "required": ["id", "name", "pricePerNight", "type"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Users information and preferences"
+    },
+    "bookings/{bookingId}": {
+      "schema": "Booking",
+      "description": "Hotel room reservations made by users"
+    },
+    "reviews/{reviewId}": {
+      "schema": "Review",
+      "description": "Reviews written by guests for various suites"
+    },
+    "suites/{suiteId}": {
+      "schema": "Suite",
+      "description": "Catalog of suites and rooms available"
+    }
+  }
+}

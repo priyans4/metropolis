@@ -1,0 +1,143 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- REUSABLE SECURITY PRIMITIVES ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- ENTITY-SPECIFIC VALIDATORS ---
+
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['fullName', 'email', 'phone'])
+        && data.keys().size() <= 6
+        && data.fullName is string && data.fullName.size() <= 100
+        && data.email is string && data.email.size() <= 100
+        && data.phone is string && data.phone.size() <= 30
+        && (!data.keys().hasAny(['memberSince']) || (data.memberSince is string && data.memberSince.size() <= 50))
+        && (!data.keys().hasAny(['memberId']) || (data.memberId is string && data.memberId.size() <= 50))
+        && (!data.keys().hasAny(['preferences']) || (
+             data.preferences is map 
+             && (!data.preferences.keys().hasAny(['roomTemperature']) || data.preferences.roomTemperature is number)
+             && (!data.preferences.keys().hasAny(['pillowType']) || (data.preferences.pillowType is string && data.preferences.pillowType in ['Goose Down', 'Memory Foam', 'Hypoallergenic', 'Lavender Infused']))
+             && (!data.preferences.keys().hasAny(['roomLocation']) || (data.preferences.roomLocation is string && data.preferences.roomLocation in ['High Floor', 'Near Elevator', 'Quiet Courtyard', 'No Preference']))
+           ));
+    }
+
+    function isValidBooking(data) {
+      return data.keys().hasAll(['id', 'userId', 'suiteId', 'suiteName', 'checkIn', 'checkOut', 'guests', 'guestName', 'guestEmail', 'guestPhone', 'totalPrice', 'nights', 'status', 'bookingDate'])
+        && data.keys().size() <= 15
+        && data.id is string && data.id.size() <= 128
+        && data.userId is string && data.userId.size() <= 128 && data.userId == request.auth.uid
+        && data.suiteId is string && data.suiteId.size() <= 128
+        && data.suiteName is string && data.suiteName.size() <= 100
+        && data.checkIn is string && data.checkIn.size() <= 20
+        && data.checkOut is string && data.checkOut.size() <= 20
+        && data.guests is int
+        && data.guestName is string && data.guestName.size() <= 100
+        && data.guestEmail is string && data.guestEmail.size() <= 100
+        && data.guestPhone is string && data.guestPhone.size() <= 30
+        && data.totalPrice is number
+        && data.nights is int
+        && data.status is string && data.status in ['active', 'cancelled']
+        && data.bookingDate is string && data.bookingDate.size() <= 50
+        && (!data.keys().hasAny(['suiteImage']) || (data.suiteImage is string && data.suiteImage.size() <= 500))
+        && (!data.keys().hasAny(['specialRequests']) || (data.specialRequests is string && data.specialRequests.size() <= 1000));
+    }
+
+    function isValidReview(data) {
+      return data.keys().hasAll(['id', 'suiteId', 'userName', 'userId', 'rating', 'date', 'comment'])
+        && data.keys().size() <= 8
+        && data.id is string && data.id.size() <= 128
+        && data.suiteId is string && data.suiteId.size() <= 128
+        && data.userName is string && data.userName.size() <= 100
+        && data.userId is string && data.userId.size() <= 128 && (data.userId == 'system-seed' || (isSignedIn() && data.userId == request.auth.uid))
+        && data.rating is number && data.rating >= 1 && data.rating <= 5
+        && data.date is string && data.date.size() <= 50
+        && data.comment is string && data.comment.size() <= 2000
+        && (!data.keys().hasAny(['title']) || (data.title is string && data.title.size() <= 200));
+    }
+
+    function isValidSuite(data) {
+      return data.keys().hasAll(['id', 'name', 'pricePerNight', 'type'])
+        && data.keys().size() <= 14
+        && data.id is string && data.id.size() <= 128
+        && data.name is string && data.name.size() <= 100
+        && data.pricePerNight is number
+        && data.type is string && data.type in ['standard', 'deluxe', 'executive', 'penthouse']
+        && (!data.keys().hasAny(['description']) || (data.description is string && data.description.size() <= 500))
+        && (!data.keys().hasAny(['longDescription']) || (data.longDescription is string && data.longDescription.size() <= 2000))
+        && (!data.keys().hasAny(['rating']) || data.rating is number)
+        && (!data.keys().hasAny(['reviewCount']) || data.reviewCount is number)
+        && (!data.keys().hasAny(['beds']) || (data.beds is string && data.beds.size() <= 50))
+        && (!data.keys().hasAny(['guests']) || data.guests is int)
+        && (!data.keys().hasAny(['size']) || data.size is number)
+        && (!data.keys().hasAny(['featured']) || data.featured is bool)
+        && (!data.keys().hasAny(['images']) || data.images is list)
+        && (!data.keys().hasAny(['amenities']) || data.amenities is list);
+    }
+
+    // --- PATH MATCHERS ---
+
+    // 1. User Profiles Matches
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create, update: if isOwner(userId) && isValidUserProfile(incoming());
+    }
+
+    // 2. Bookings Matches
+    match /bookings/{bookingId} {
+      allow read, list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidId(bookingId) && isValidBooking(incoming());
+      allow update: if isSignedIn() 
+                    && resource.data.userId == request.auth.uid 
+                    && isValidBooking(incoming())
+                    && existing().status == 'active'
+                    && incoming().diff(existing()).affectedKeys().hasOnly(['status'])
+                    && incoming().status == 'cancelled';
+    }
+
+    // 3. Reviews Matches
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if isValidId(reviewId) && isValidReview(incoming());
+      allow update: if isSignedIn() 
+                    && resource.data.userId == request.auth.uid 
+                    && isValidReview(incoming())
+                    && incoming().diff(existing()).affectedKeys().hasOnly(['comment', 'rating', 'title', 'date']);
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    // 4. Suites Matches (Static Catalog)
+    match /suites/{suiteId} {
+      allow read: if true;
+      allow create: if isValidId(suiteId) && isValidSuite(incoming());
+      allow update: if isValidSuite(incoming())
+                    && incoming().diff(existing()).affectedKeys().hasOnly(['rating', 'reviewCount']);
+      allow delete: if false;
+    }
+
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "name": "City Hotel Suite Booking",
+  "description": "A premium hotel suite booking website with live filtering by price, amenities, and guest reviews, and online room booking system.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    ""
+  ]
+}
